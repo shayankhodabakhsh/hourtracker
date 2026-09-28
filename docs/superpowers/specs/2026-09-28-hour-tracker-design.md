@@ -53,6 +53,8 @@ Away 23m. Were you studying?   [Yes] [No]
 - If the question is ignored, the time counts. If a second away stretch happens
   while a question is still open, the first one counts and the question switches
   to the new stretch.
+- Pausing leaves an open question in place, so No still works. Starting the
+  timer again, or a new stretch at the laptop, counts it as Yes.
 
 ### Forgot-to-start buzz
 
@@ -174,7 +176,8 @@ instance. The launcher must call `/usr/bin/python3` explicitly, because the
   counts silently. The monotonic idle counter excludes suspend time, so it isn't
   trusted on this tick.
 - **No**: pause at now if running, then `remove_range(away_start, away_end)`.
-- **Paused**: no away questions. Starting the timer resets `last_active` to now.
+- **Paused**: no new away questions. A question that was already open stays open
+  (see "Away check"). Starting the timer resets `last_active` to now.
 - **Buzz**: see "Forgot-to-start buzz". Without an idle monitor there is no buzz,
   because the app can't tell whether anyone is at the laptop.
 - **Clock going backwards**: no away detection on that tick, and a session's end

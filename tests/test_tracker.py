@@ -128,13 +128,35 @@ class AwayTest(TrackerTestCase):
         self.assertFalse(self.tracker.running)
         self.assertEqual(self.saved(), [(T0, T0 + 600)])
 
-    def test_pausing_counts_an_open_question(self):
+    def test_no_after_pausing_still_removes_the_stretch(self):
+        self.tracker.start()
+        self.advance(600)
+        self.advance(895, active=False)
+        self.advance(5)                        # question: T0+600 .. T0+1500
+        self.tracker.pause()
+        self.assertIsNotNone(self.tracker.pending)
+        self.tracker.answer_away(studying=False)
+        self.assertFalse(self.tracker.running)
+        self.assertEqual(self.saved(), [(T0, T0 + 600)])
+
+    def test_starting_again_counts_an_open_question(self):
         self.tracker.start()
         self.advance(895, active=False)
         self.advance(5)                        # question: T0 .. T0+900
         self.tracker.pause()
+        self.tracker.start()
         self.assertIsNone(self.tracker.pending)
-        self.assertEqual(self.saved(), [(T0, T0 + 900)])
+        self.assertEqual(self.total(), 900)
+
+    def test_a_new_stretch_while_paused_counts_an_open_question(self):
+        self.tracker.start()
+        self.advance(895, active=False)
+        self.advance(5)                        # question: T0 .. T0+900
+        self.tracker.pause()
+        self.advance(895, active=False)
+        self.advance(5)                        # back again after another break
+        self.assertIsNone(self.tracker.pending)
+        self.assertEqual(self.total(), 900)
 
     def test_sleeping_laptop_asks_on_wake(self):
         self.tracker.start()

@@ -63,16 +63,17 @@ class Tracker:
         self._session_id = None
         self._saved_end = self._start
         self._last_active = now
+        self.pending = None                 # an unanswered question counts as "yes"
         self._silence_nudge()
         self._save(now)
         self._emit(self.on_change)
 
     def pause(self) -> None:
+        """Stop timing. An open away question stays open, so No still works."""
         if not self.running:
             return
         self._save(self.clock())
         self.running = False
-        self.pending = None                 # an unanswered question counts as "yes"
         self._session_id = None
         self._silence_nudge()
         self._emit(self.on_change)
@@ -154,6 +155,7 @@ class Tracker:
             self._active_since = came_back
             self._nudge_armed = True
             self.nudge = None                     # an old buzz is stale now
+            self.pending = None                   # so is an old question: it counts
         self._emit(self.on_change)
 
     def _maybe_nudge(self, now: float) -> None:
