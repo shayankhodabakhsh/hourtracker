@@ -1,0 +1,5 @@
+#!/bin/sh
+# Starts Hour Tracker with the system Python, which has the GTK bindings.
+# (The python3 on PATH may be conda's, which doesn't.)
+cd "$(dirname "$(readlink -f "$0")")" || exit 1
+exec /usr/bin/python3 -m hourtracker "$@"
