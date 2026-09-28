@@ -72,6 +72,7 @@ class Tracker:
             return
         self._save(self.clock())
         self.running = False
+        self.pending = None                 # an unanswered question counts as "yes"
         self._session_id = None
         self._silence_nudge()
         self.on_change()

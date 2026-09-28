@@ -127,6 +127,14 @@ class AwayTest(TrackerTestCase):
         self.assertFalse(self.tracker.running)
         self.assertEqual(self.saved(), [(T0, T0 + 600)])
 
+    def test_pausing_counts_an_open_question(self):
+        self.tracker.start()
+        self.advance(895, active=False)
+        self.advance(5)                        # question: T0 .. T0+900
+        self.tracker.pause()
+        self.assertIsNone(self.tracker.pending)
+        self.assertEqual(self.saved(), [(T0, T0 + 900)])
+
     def test_sleeping_laptop_asks_on_wake(self):
         self.tracker.start()
         self.advance(60)
