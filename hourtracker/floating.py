@@ -49,6 +49,7 @@ class FloatingWindow(Gtk.Window):
         self._pos_key = pos_key
         self._default_pos = default_pos     # (width, height, area) -> (x, y)
         self._press = None                  # (x_root, y_root) while button 1 is down
+        self._user_moved = False            # dragged since the position was last saved
         self._save_id = 0
         self.set_decorated(False)
         self.set_resizable(False)
@@ -116,6 +117,7 @@ class FloatingWindow(Gtk.Window):
         x0, y0 = self._press
         if max(abs(event.x_root - x0), abs(event.y_root - y0)) > DRAG_THRESHOLD:
             self._press = None
+            self._user_moved = True
             self.on_drag()
             self.begin_move_drag(Gdk.BUTTON_PRIMARY, int(x0), int(y0), event.time)
         return True
@@ -128,6 +130,10 @@ class FloatingWindow(Gtk.Window):
         return False
 
     def _on_configure(self, _widget, _event):
+        # Only remember spots the user dragged to. Other moves (clamping when a
+        # monitor goes away, the buzz, making room for a question) don't count.
+        if not self._user_moved:
+            return False
         if self._save_id:
             GLib.source_remove(self._save_id)
         self._save_id = GLib.timeout_add(600, self._save_position)
@@ -135,5 +141,6 @@ class FloatingWindow(Gtk.Window):
 
     def _save_position(self):
         self._save_id = 0
+        self._user_moved = False
         self._settings[self._pos_key] = list(self.get_position())
         return GLib.SOURCE_REMOVE
