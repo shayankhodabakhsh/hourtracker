@@ -257,6 +257,20 @@ class NudgeTest(TrackerTestCase):
         self.advance(180)
         self.assertEqual(self.buzzes, 2)
 
+    def test_a_new_stretch_clears_an_unanswered_buzz(self):
+        self.advance(180)                      # buzz: nudge = T0
+        self.advance(895, active=False)
+        self.advance(5)                        # back after a break: new stretch
+        self.assertIsNone(self.tracker.nudge)
+
+    def test_no_buzz_without_an_idle_monitor(self):
+        tracker = Tracker(self.store, clock=self.clock, idle=lambda: None)
+        tracker.on_nudge = self.count_buzz
+        for _ in range(120):                   # 10 minutes of ticks
+            self.clock.now += TICK_SECONDS
+            tracker.tick()
+        self.assertEqual(self.buzzes, 0)
+
 
 class FlakyStore(Store):
     """A store whose writes can be made to fail, like a locked database."""
