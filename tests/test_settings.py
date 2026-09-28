@@ -37,3 +37,9 @@ class SettingsTest(unittest.TestCase):
         self.assertFalse(settings["balloon_visible"])
         with self.assertRaises(KeyError):
             settings["mystery"]
+
+    def test_minutes_must_be_at_least_one(self):
+        self.write(json.dumps({"away_minutes": 0, "nudge_minutes": -2}))
+        settings = Settings(self.path)
+        self.assertEqual(settings["away_minutes"], 15)
+        self.assertEqual(settings["nudge_minutes"], 3)

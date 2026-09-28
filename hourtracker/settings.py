@@ -21,6 +21,8 @@ def _valid(key, value) -> bool:
     if key.endswith("_pos"):
         return value is None or (isinstance(value, list) and len(value) == 2
                                  and all(type(v) in (int, float) for v in value))
+    if key.endswith("_minutes"):
+        return type(value) is int and value >= 1
     return type(value) is type(DEFAULTS[key])
 
 
