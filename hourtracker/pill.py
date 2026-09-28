@@ -96,8 +96,12 @@ class PillWindow(FloatingWindow):
         button = Gtk.Button()
         button.set_can_focus(False)
         button.get_style_context().add_class("answer")
-        button.connect("clicked", lambda _button: self._on_answer(self._question, yes))
+        button.connect("clicked", lambda _button: self._answered(yes))
         return button
+
+    def _answered(self, yes):
+        if self._question is not None:      # ignore clicks while the row closes
+            self._on_answer(self._question, yes)
 
     def update(self, running, today_seconds, away=None, nudge_since=None):
         """Show the timer state and whichever question is open."""
