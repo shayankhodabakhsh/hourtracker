@@ -72,6 +72,39 @@ def pill_nudge():
     return _pill(running=False, today_seconds=0, nudge_since=0)
 
 
+def _sample_stats_window():
+    import random
+    import time
+    from datetime import timedelta
+    from hourtracker.stats import SUNDAY, local_date, local_midnight
+    from hourtracker.stats_window import StatsWindow
+    from hourtracker.store import Store
+    from hourtracker.tracker import Tracker
+    store = Store(":memory:")
+    today = local_date(time.time())
+    rng = random.Random(7)
+    for back in range(1, 40):
+        start = local_midnight(today - timedelta(days=back)) + 9 * 3600
+        store.extend(store.begin(start), start + rng.randint(0, 5 * 3600))
+    store.extend(store.begin(time.time() - 5400), time.time())
+    return StatsWindow(Tracker(store), SUNDAY)
+
+
+@target
+def stats():
+    window = _sample_stats_window()
+    window.show_all()
+    return window
+
+
+@target
+def stats_month():
+    window = _sample_stats_window()
+    window.show_all()
+    window.set_view("month")
+    return window
+
+
 def capture(window, path):
     gdk_window = window.get_window()
     width, height = gdk_window.get_width(), gdk_window.get_height()
