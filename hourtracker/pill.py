@@ -5,7 +5,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from .floating import FloatingWindow
+from .floating import FloatingWindow, clamp_to_workareas, workareas
 from .stats import fmt_clock, fmt_duration
 
 CSS = b"""
@@ -50,6 +50,7 @@ class PillWindow(FloatingWindow):
         self._menu_factory = menu_factory
         self._menu = None
         self._question = None           # "away", "nudge", or None
+        self._home = None               # where the pill sat before a question opened
         self._buzz_id = 0
         self.set_title("Hour Tracker pill")
 
@@ -88,9 +89,15 @@ class PillWindow(FloatingWindow):
         buttons.pack_start(self._no, True, True, 0)
         row.pack_start(self._question_label, False, False, 0)
         row.pack_start(buttons, False, False, 0)
+        row.show_all()
+        # A hidden revealer takes no room. Shown but closed, it would still
+        # ask for the question's full width.
+        self._revealer.set_no_show_all(True)
         self._revealer.add(row)
         self._box.pack_start(self._revealer, False, False, 0)
         self.add(self._box)
+        self._box.show_all()            # so get_size() is right before the first show
+        self.connect("configure-event", self._keep_question_on_screen)
 
     def _answer_button(self, yes):
         button = Gtk.Button()
@@ -125,15 +132,38 @@ class PillWindow(FloatingWindow):
             self._revealer.set_reveal_child(False)
 
     def _ask(self, kind, text, yes, no):
+        if self._question is None:      # remember where to go back to
+            self._home = self.get_position()
         self._question = kind
         self._question_label.set_text(text)
         self._yes.set_label(yes)
         self._no.set_label(no)
+        self._revealer.show()
         self._revealer.set_reveal_child(True)
 
     def _on_revealed(self, revealer, _pspec):
-        if not revealer.get_child_revealed():
-            self.resize(1, 1)           # shrink back to just the pill
+        if revealer.get_child_revealed():
+            return
+        revealer.hide()
+        self.resize(1, 1)               # shrink back to just the pill
+        if self._home is not None:      # and go back to where it was
+            # Send the shrink first. Moved home while still wide, the pill
+            # would stick out, and the window manager would push it back.
+            self.check_resize()
+            self.move(*self._home)
+            self._home = None
+
+    def _keep_question_on_screen(self, _widget, event):
+        """An open question makes the pill wider. Keep all of it on-screen."""
+        if self._question is not None:
+            x, y = clamp_to_workareas(event.x, event.y, event.width, event.height,
+                                      workareas(self.get_display()))
+            if (x, y) != (event.x, event.y):
+                self.move(x, y)
+        return False
+
+    def on_drag(self):
+        self._home = None               # the user chose a new spot
 
     def buzz(self):
         """Shake side to side, like a phone buzzing."""

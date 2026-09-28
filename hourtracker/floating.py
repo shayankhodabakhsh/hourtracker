@@ -41,7 +41,7 @@ class FloatingWindow(Gtk.Window):
     """Transparent, undecorated, always on top, on every workspace, and never
     focused. Tells a click from a drag and remembers where it was left.
 
-    Subclasses override on_click(event) and on_menu(event)."""
+    Subclasses override on_click(event), on_menu(event), and on_drag()."""
 
     def __init__(self, settings, pos_key, default_pos):
         super().__init__()
@@ -88,6 +88,9 @@ class FloatingWindow(Gtk.Window):
     def on_menu(self, event):
         """Right-click."""
 
+    def on_drag(self):
+        """A drag by the user just started."""
+
     @staticmethod
     def _clear(_widget, cr):
         cr.save()
@@ -113,6 +116,7 @@ class FloatingWindow(Gtk.Window):
         x0, y0 = self._press
         if max(abs(event.x_root - x0), abs(event.y_root - y0)) > DRAG_THRESHOLD:
             self._press = None
+            self.on_drag()
             self.begin_move_drag(Gdk.BUTTON_PRIMARY, int(x0), int(y0), event.time)
         return True
 
