@@ -40,6 +40,38 @@ def balloon():
     return window
 
 
+def _pill(**state):
+    from hourtracker.pill import PillWindow
+    window = PillWindow(scratch_settings(), on_toggle=lambda: None,
+                        on_open_stats=lambda: None,
+                        on_answer=lambda kind, yes: None, menu_factory=lambda: None)
+    window.update(**state)
+    window.place()
+    window.show_all()
+    return window
+
+
+@target
+def pill():
+    return _pill(running=False, today_seconds=84 * 60)
+
+
+@target
+def pill_running():
+    return _pill(running=True, today_seconds=84 * 60)
+
+
+@target
+def pill_away():
+    from hourtracker.tracker import Away
+    return _pill(running=True, today_seconds=84 * 60, away=Away(0, 23 * 60))
+
+
+@target
+def pill_nudge():
+    return _pill(running=False, today_seconds=0, nudge_since=0)
+
+
 def capture(window, path):
     gdk_window = window.get_window()
     width, height = gdk_window.get_width(), gdk_window.get_height()
