@@ -28,7 +28,7 @@ Comment=Track your study hours, with a balloon to fidget with
 Exec="$HERE/hour-tracker"
 Icon=$HERE/data/hour-tracker.svg
 Terminal=false
-Categories=Education;Utility;
+Categories=Education;
 StartupWMClass=hour-tracker
 EOF
 echo "Installed. Open Hour Tracker from the app grid."
