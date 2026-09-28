@@ -137,6 +137,8 @@ class HourTrackerApp(Gtk.Application):
     def _set_nudge(self, enabled):
         self.settings["nudge_enabled"] = enabled
         self.tracker.nudge_enabled = enabled
+        if not enabled:                 # and close a buzz that's already open
+            self.tracker.answer_nudge(start=False)
 
     def _build_menu(self):
         menu = Gtk.Menu()
