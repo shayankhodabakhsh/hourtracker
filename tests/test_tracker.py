@@ -1,3 +1,4 @@
+import sqlite3
 import unittest
 
 from hourtracker import stats
@@ -233,3 +234,43 @@ class NudgeTest(TrackerTestCase):
         self.tracker.tick()
         self.advance(180)
         self.assertEqual(self.buzzes, 2)
+
+
+class FlakyStore(Store):
+    """A store whose writes can be made to fail, like a locked database."""
+
+    def __init__(self):
+        super().__init__(":memory:")
+        self.failing = False
+
+    def extend(self, session_id, ts):
+        if self.failing:
+            raise sqlite3.OperationalError("database is locked")
+        super().extend(session_id, ts)
+
+
+class RobustnessTest(TrackerTestCase):
+    def test_a_failed_save_is_retried_at_the_next_checkpoint(self):
+        store = FlakyStore()
+        self.addCleanup(store.close)
+        self.tracker = Tracker(store, clock=self.clock, idle=self.idle)
+        self.tracker.start()
+        store.failing = True
+        with self.assertLogs("hourtracker.tracker", "ERROR"):
+            self.advance(60)
+        store.failing = False
+        self.advance(30)
+        self.assertEqual(store.sessions_between(0, T0 * 2), [(T0, T0 + 90)])
+
+    def test_a_failing_ui_callback_does_not_stop_an_answer(self):
+        def broken():
+            raise RuntimeError("window gone")
+        self.tracker.start()
+        self.advance(600)
+        self.advance(895, active=False)
+        self.tracker.on_change = broken
+        with self.assertLogs("hourtracker.tracker", "ERROR"):
+            self.advance(5)              # the question opens; the UI update fails
+            self.tracker.answer_away(studying=False)
+        self.assertFalse(self.tracker.running)
+        self.assertEqual(self.saved(), [(T0, T0 + 600)])

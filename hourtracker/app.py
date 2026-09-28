@@ -1,5 +1,6 @@
 """Hour Tracker: wires the tracker to the pill, the balloon, the stats window,
 and the forgot-to-start notification."""
+import logging
 import os
 import signal
 
@@ -18,6 +19,8 @@ from .stats import local_date, resolve_first_weekday
 from .stats_window import StatsWindow
 from .store import Store
 from .tracker import TICK_SECONDS, Tracker
+
+log = logging.getLogger(__name__)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAUNCHER = os.path.join(ROOT, "hour-tracker")
@@ -88,8 +91,11 @@ class HourTrackerApp(Gtk.Application):
     # Keeping the UI current ----------------------------------------------
 
     def _tick(self):
-        self.tracker.tick()
-        self._update_pill()
+        try:
+            self.tracker.tick()
+            self._update_pill()
+        except Exception:
+            log.exception("tick failed; trying again in %d s", TICK_SECONDS)
         return GLib.SOURCE_CONTINUE
 
     def _update_pill(self):

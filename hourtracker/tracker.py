@@ -65,7 +65,7 @@ class Tracker:
         self._last_active = now
         self._silence_nudge()
         self._save(now)
-        self.on_change()
+        self._emit(self.on_change)
 
     def pause(self) -> None:
         if not self.running:
@@ -75,7 +75,7 @@ class Tracker:
         self.pending = None                 # an unanswered question counts as "yes"
         self._session_id = None
         self._silence_nudge()
-        self.on_change()
+        self._emit(self.on_change)
 
     def toggle(self) -> None:
         if self.running:
@@ -94,7 +94,7 @@ class Tracker:
                 self.store.remove_range(away.start, away.end)
             except sqlite3.Error:
                 log.exception("could not remove the away time")
-        self.on_change()
+        self._emit(self.on_change)
 
     def answer_nudge(self, start: bool) -> None:
         """Reply to the buzz. Start counts from the beginning of the stretch."""
@@ -105,7 +105,7 @@ class Tracker:
             self.start(at=since)
         else:
             self._silence_nudge()
-            self.on_change()
+            self._emit(self.on_change)
 
     # Reading ------------------------------------------------------------
 
@@ -154,20 +154,27 @@ class Tracker:
             self._active_since = came_back
             self._nudge_armed = True
             self.nudge = None                     # an old buzz is stale now
-        self.on_change()
+        self._emit(self.on_change)
 
     def _maybe_nudge(self, now: float) -> None:
         if (self.nudge_enabled and self._nudge_armed and self.nudge is None
                 and now - self._active_since >= self.nudge_after):
             self.nudge = self._active_since
             self._nudge_armed = False
-            self.on_nudge()
-            self.on_change()
+            self._emit(self.on_nudge)
+            self._emit(self.on_change)
 
     def _silence_nudge(self) -> None:
         """No buzz until the next stretch at the laptop."""
         self.nudge = None
         self._nudge_armed = False
+
+    def _emit(self, callback) -> None:
+        """Tell the UI something changed. A UI failure must not stop timekeeping."""
+        try:
+            callback()
+        except Exception:
+            log.exception("UI callback failed")
 
     def _save(self, now: float) -> None:
         """Write the running session to disk; if that fails, retry next time."""
