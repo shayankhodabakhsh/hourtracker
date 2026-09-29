@@ -11,7 +11,8 @@ A minimal study-hour tracker for Ubuntu (GNOME), plus a balloon to fidget with.
   open, and starting the timer again counts the time.
 - **Forgot-to-start buzz**: after 3 minutes of using the laptop with the timer
   off, the pill shakes and a notification asks if you're studying. "Start"
-  counts from when you sat down.
+  counts from zero, like the play button. A locked screen never counts as
+  being at the laptop.
 - **Stats**: today, this week, and this month, with a week/month bar chart.
 - **Balloon**: a matte black balloon you can drag around and squish. It's only a
   toy.

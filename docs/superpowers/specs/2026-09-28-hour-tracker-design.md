@@ -72,8 +72,9 @@ user touched the keyboard or mouse in the last minute:
 
 - A GNOME notification appears with the same **Start** and **Not now** buttons.
   Answering in either place closes the other.
-- **Start** starts the timer and counts from the beginning of the stretch, so the
-  forgotten minutes aren't lost.
+- **Start** starts the timer from zero, like the play button. (Counting from the
+  beginning of the stretch was dropped: a buzz left open for hours could then
+  add hours that were never studied.)
 - **Not now** stays quiet until the next stretch.
 - The buzz happens at most once per stretch. Starting or pausing the timer by
   hand, or answering the away question, also silences it until the next stretch.
@@ -180,6 +181,11 @@ instance. The launcher must call `/usr/bin/python3` explicitly, because the
   (see "Away check"). Starting the timer resets `last_active` to now.
 - **Buzz**: see "Forgot-to-start buzz". Without an idle monitor there is no buzz,
   because the app can't tell whether anyone is at the laptop.
+- **Locked screen**: while GNOME's screen lock is up (`org.gnome.ScreenSaver`
+  `GetActive`), nothing counts as someone at the laptop: no new stretch, no
+  return from away, and no buzz. GNOME's idle counter can reset while locked with
+  nobody there; on 2026-09-29 that started a stretch at 05:20 with the lid closed.
+  The user's first input after unlocking counts as coming back.
 - **Clock going backwards**: no away detection on that tick, and a session's end
   never moves backwards.
 
