@@ -4,11 +4,15 @@ import logging
 import sqlite3
 import time
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from . import stats
 
 log = logging.getLogger(__name__)
+
+
+def _clock_time(ts: float) -> str:
+    return datetime.fromtimestamp(ts).strftime("%H:%M:%S")
 
 TICK_SECONDS = 5            # how often the app calls tick()
 CHECKPOINT_SECONDS = 30     # how often a running session is written to disk
@@ -28,17 +32,18 @@ class Away:
 
 
 class Tracker:
-    def __init__(self, store, clock=time.time, idle=lambda: None,
+    def __init__(self, store, clock=time.time, idle=lambda: None, locked=lambda: False,
                  away_after=15 * 60, nudge_after=3 * 60):
         self.store = store
         self.clock = clock
         self.idle = idle                # () -> seconds since the last input, or None
+        self.locked = locked            # () -> True while the screen is locked
         self.away_after = away_after
         self.nudge_after = nudge_after
         self.nudge_enabled = True
         self.running = False
         self.pending = None             # an Away waiting for "were you studying?"
-        self.nudge = None               # set while the forgot-to-start buzz is open
+        self.nudge = None               # while the buzz is open: when the stretch began
         self.on_change = lambda: None   # something the UI shows has changed
         self.on_nudge = lambda: None    # the timer looks forgotten: buzz
         now = clock()
@@ -53,13 +58,13 @@ class Tracker:
 
     # Controls -----------------------------------------------------------
 
-    def start(self, at=None) -> None:
-        """Start timing now, or from an earlier moment `at`."""
+    def start(self) -> None:
+        """Start timing from now."""
         if self.running:
             return
         now = self.clock()
         self.running = True
-        self._start = now if at is None else min(at, now)
+        self._start = now
         self._session_id = None
         self._saved_end = self._start
         self._last_active = now
@@ -98,12 +103,11 @@ class Tracker:
         self._emit(self.on_change)
 
     def answer_nudge(self, start: bool) -> None:
-        """Reply to the buzz. Start counts from the beginning of the stretch."""
-        since = self.nudge
-        if since is None:
+        """Reply to the buzz. Start counts from zero, like the play button."""
+        if self.nudge is None:
             return
         if start:
-            self.start(at=since)
+            self.start()
         else:
             self._silence_nudge()
             self._emit(self.on_change)
@@ -136,22 +140,29 @@ class Tracker:
             self._last_active = self._last_save = now
             return
         slept = gap > SUSPEND_GAP_SECONDS
+        locked = self.locked()
         idle = None if slept else self.idle()     # idle time leaves out sleep
-        came_back = now if idle is None else now - idle
+        if locked:
+            came_back = self._last_active         # nobody studies at a locked screen
+        else:
+            came_back = now if idle is None else now - idle
         if came_back - self._last_active >= self.away_after:
             self._returned(self._last_active, came_back)
         self._last_active = max(self._last_active, came_back)
         if self.running:
             if slept or now - self._last_save >= CHECKPOINT_SECONDS:
                 self._save(now)
-        elif idle is not None and idle < ACTIVE_SECONDS:
+        elif not locked and idle is not None and idle < ACTIVE_SECONDS:
             self._maybe_nudge(now)
 
     def _returned(self, left: float, came_back: float) -> None:
         """Back after a long break, or the laptop woke up."""
         if self.running:
+            log.info("away %s to %s: asking whether it was study time",
+                     _clock_time(left), _clock_time(came_back))
             self.pending = Away(left, came_back)  # replaces an unanswered one
         else:
+            log.info("back at the laptop at %s", _clock_time(came_back))
             self._active_since = came_back
             self._nudge_armed = True
             self.nudge = None                     # an old buzz is stale now
@@ -161,6 +172,8 @@ class Tracker:
     def _maybe_nudge(self, now: float) -> None:
         if (self.nudge_enabled and self._nudge_armed and self.nudge is None
                 and now - self._active_since >= self.nudge_after):
+            log.info("at the laptop since %s with the timer off: reminding",
+                     _clock_time(self._active_since))
             self.nudge = self._active_since
             self._nudge_armed = False
             self._emit(self.on_nudge)

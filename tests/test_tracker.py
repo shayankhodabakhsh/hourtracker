@@ -212,16 +212,22 @@ class NudgeTest(TrackerTestCase):
         self.assertEqual(self.tracker.nudge, T0)
         self.assertEqual(self.buzzes, 1)
 
+    def test_the_reminder_is_logged_for_later_diagnosis(self):
+        with self.assertLogs("hourtracker.tracker", "INFO"):
+            self.advance(180)
+
     def test_buzzes_only_once_per_stretch(self):
         self.advance(600)
         self.assertEqual(self.buzzes, 1)
 
-    def test_start_counts_from_when_you_sat_down(self):
-        self.advance(180)
+    def test_start_counts_from_zero(self):
+        self.advance(180)                      # the buzz after 3 minutes at the laptop
         self.tracker.answer_nudge(start=True)
         self.assertTrue(self.tracker.running)
         self.assertIsNone(self.tracker.nudge)
-        self.assertEqual(self.total(), 180)
+        self.assertEqual(self.total(), 0)
+        self.advance(60)
+        self.assertEqual(self.total(), 60)
 
     def test_not_now_stays_quiet_until_the_next_break(self):
         self.advance(180)
@@ -270,6 +276,49 @@ class NudgeTest(TrackerTestCase):
             self.clock.now += TICK_SECONDS
             tracker.tick()
         self.assertEqual(self.buzzes, 0)
+
+
+class LockedScreenTest(TrackerTestCase):
+    """GNOME's idle counter can reset while the screen is locked (it did at
+    05:20 one night), but nobody studies at a locked laptop."""
+
+    def setUp(self):
+        super().setUp()
+        self.screen_locked = False
+        self.tracker = Tracker(self.store, clock=self.clock, idle=self.idle,
+                               locked=lambda: self.screen_locked)
+        self.buzzes = 0
+        self.tracker.on_nudge = self.count_buzz
+
+    def count_buzz(self):
+        self.buzzes += 1
+
+    def test_a_locked_screen_never_counts_as_being_at_the_laptop(self):
+        self.advance(60)                       # at the laptop for a minute
+        self.screen_locked = True
+        self.advance(3600, active=False)       # an hour asleep, nothing happens
+        for _ in range(12):                    # then the idle counter resets
+            self.advance(5)                    # every 10 minutes, still locked
+            self.advance(595, active=False)
+        self.assertEqual(self.buzzes, 0)
+        self.assertIsNone(self.tracker.nudge)
+        self.screen_locked = False             # you unlock and start working
+        self.advance(175)
+        self.assertEqual(self.buzzes, 0)       # you only just sat down
+        self.advance(10)
+        self.assertEqual(self.buzzes, 1)
+
+    def test_away_while_locked_is_asked_about_when_you_unlock(self):
+        self.tracker.start()
+        self.advance(600)                      # studying until T0+600
+        self.screen_locked = True
+        self.advance(3600, active=False)
+        self.advance(5)                        # the idle counter resets, still locked
+        self.advance(1795, active=False)
+        self.assertIsNone(self.tracker.pending)
+        self.screen_locked = False
+        self.advance(5)                        # you unlock at T0+6005
+        self.assertEqual(self.tracker.pending, Away(T0 + 600, T0 + 6005))
 
 
 class FlakyStore(Store):

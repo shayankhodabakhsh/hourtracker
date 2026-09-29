@@ -11,7 +11,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from . import APP_ID, autostart
 from .balloon import BalloonWindow
-from .idle import IdleMonitor
+from .idle import IdleMonitor, LockMonitor
 from .notifier import Notifier
 from .pill import PillWindow
 from .settings import Settings
@@ -44,7 +44,7 @@ class HourTrackerApp(Gtk.Application):
             Gtk.Window.set_default_icon_from_file(ICON)
         self.settings = Settings(_xdg("XDG_CONFIG_HOME", "~/.config", "settings.json"))
         self.store = Store(_xdg("XDG_DATA_HOME", "~/.local/share", "hours.db"))
-        self.tracker = Tracker(self.store, idle=IdleMonitor(),
+        self.tracker = Tracker(self.store, idle=IdleMonitor(), locked=LockMonitor(),
                                away_after=self.settings["away_minutes"] * 60,
                                nudge_after=self.settings["nudge_minutes"] * 60)
         self.tracker.nudge_enabled = self.settings["nudge_enabled"]

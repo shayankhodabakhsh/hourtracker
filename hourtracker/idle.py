@@ -1,5 +1,6 @@
-"""Seconds since the last keyboard or mouse input, from GNOME's idle monitor.
-It works on Wayland, where apps can't watch input themselves."""
+"""What GNOME knows about whether someone is at the laptop: seconds since the
+last keyboard or mouse input, and whether the screen is locked. Both work on
+Wayland, where apps can't watch input themselves."""
 import logging
 
 from gi.repository import Gio, GLib
@@ -7,8 +8,10 @@ from gi.repository import Gio, GLib
 log = logging.getLogger(__name__)
 
 
-class IdleMonitor:
-    """Call it to get idle seconds, or None when GNOME's monitor isn't there."""
+class _GnomeQuery:
+    """Calls one method on a GNOME D-Bus service; logs one warning if it can't."""
+
+    NAME = PATH = INTERFACE = METHOD = UNAVAILABLE = ""
 
     def __init__(self, proxy=None):
         self._warned = False
@@ -20,28 +23,49 @@ class IdleMonitor:
                 Gio.BusType.SESSION,
                 Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES
                 | Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS,
-                None,
-                "org.gnome.Mutter.IdleMonitor",
-                "/org/gnome/Mutter/IdleMonitor/Core",
-                "org.gnome.Mutter.IdleMonitor",
-                None)
+                None, self.NAME, self.PATH, self.INTERFACE, None)
         except GLib.Error as err:
             self._warn(err)
             return None
 
-    def __call__(self):
+    def _query(self):
+        """The method's result, or None when GNOME can't answer."""
         if self._proxy is None:
             return None
         try:
-            reply = self._proxy.call_sync("GetIdletime", None,
+            reply = self._proxy.call_sync(self.METHOD, None,
                                           Gio.DBusCallFlags.NONE, 1000, None)
         except GLib.Error as err:
             self._warn(err)
             return None
-        return reply.unpack()[0] / 1000.0
+        return reply.unpack()[0]
 
     def _warn(self, err):
         if not self._warned:
             self._warned = True
-            log.warning("idle monitor unavailable, so only sleep counts as away "
-                        "and there's no buzz: %s", err.message)
+            log.warning("%s: %s", self.UNAVAILABLE, err.message)
+
+
+class IdleMonitor(_GnomeQuery):
+    """Call it to get idle seconds, or None when GNOME's monitor isn't there."""
+
+    NAME = INTERFACE = "org.gnome.Mutter.IdleMonitor"
+    PATH = "/org/gnome/Mutter/IdleMonitor/Core"
+    METHOD = "GetIdletime"
+    UNAVAILABLE = "idle monitor unavailable, so only sleep counts as away and there's no buzz"
+
+    def __call__(self):
+        ms = self._query()
+        return None if ms is None else ms / 1000.0
+
+
+class LockMonitor(_GnomeQuery):
+    """Call it to learn whether the screen is locked; False if GNOME can't say."""
+
+    NAME = INTERFACE = "org.gnome.ScreenSaver"
+    PATH = "/org/gnome/ScreenSaver"
+    METHOD = "GetActive"
+    UNAVAILABLE = "screen lock state unavailable, so a locked screen can't be ignored"
+
+    def __call__(self):
+        return bool(self._query())
