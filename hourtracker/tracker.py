@@ -14,7 +14,8 @@ log = logging.getLogger(__name__)
 def _clock_time(ts: float) -> str:
     return datetime.fromtimestamp(ts).strftime("%H:%M:%S")
 
-TICK_SECONDS = 5            # how often the app calls tick()
+
+TICK_SECONDS = 5           # how often the app calls tick()
 CHECKPOINT_SECONDS = 30     # how often a running session is written to disk
 SUSPEND_GAP_SECONDS = 60    # a longer gap between ticks means the laptop slept
 ACTIVE_SECONDS = 60         # input this recent means someone is at the laptop

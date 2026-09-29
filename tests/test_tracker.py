@@ -320,6 +320,27 @@ class LockedScreenTest(TrackerTestCase):
         self.advance(5)                        # you unlock at T0+6005
         self.assertEqual(self.tracker.pending, Away(T0 + 600, T0 + 6005))
 
+    def test_sleeping_while_locked_is_asked_about_when_you_unlock(self):
+        self.tracker.start()
+        self.advance(600)                      # studying until T0+600
+        self.screen_locked = True
+        self.clock.now += 3600                 # asleep for an hour, locked
+        self.tracker.tick()
+        self.assertIsNone(self.tracker.pending)
+        self.screen_locked = False
+        self.advance(5)                        # you unlock at T0+4205
+        self.assertEqual(self.tracker.pending, Away(T0 + 600, T0 + 4205))
+
+    def test_a_short_lock_counts_silently(self):
+        self.tracker.start()
+        self.advance(600)
+        self.screen_locked = True
+        self.advance(600, active=False)        # a 10 minute coffee break, locked
+        self.screen_locked = False
+        self.advance(5)
+        self.assertIsNone(self.tracker.pending)
+        self.assertEqual(self.total(), 1205)
+
 
 class FlakyStore(Store):
     """A store whose writes can be made to fail, like a locked database."""

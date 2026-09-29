@@ -205,6 +205,9 @@ instance. The launcher must call `/usr/bin/python3` explicitly, because the
 
 - **Idle monitor unavailable**: idle detection and the buzz are off, and suspend
   detection still works. A warning is logged once.
+- **Screen lock state unavailable**: a locked screen is treated as unlocked (the
+  behavior before the lock rule). A warning is logged once. Both GNOME queries
+  time out after 250 ms, so a stuck GNOME Shell can't freeze the app for long.
 - **Notification server unavailable**: the pill still buzzes. The failure is
   logged.
 - **SQLite write fails**: the error is logged and the write is retried at the next
@@ -223,9 +226,10 @@ instance. The launcher must call `/usr/bin/python3` explicitly, because the
     formatting.
   - `store`: every `remove_range` case (inside, split, clip left, clip right, full
     delete, no overlap) and persistence across reopen.
-  - `tracker`, with a fake clock and fake idle source: asks at exactly 15:00 but
-    not at 14:59, suspend gaps, Yes, No, a question being replaced, no questions
-    while paused, checkpoint cadence, and every buzz rule.
+  - `tracker`, with a fake clock, idle source, and lock state: asks at exactly
+    15:00 but not at 14:59, suspend gaps, Yes, No, a question being replaced, no
+    questions while paused, checkpoint cadence, every buzz rule, and the
+    locked-screen rule (including a replay of the 2026-09-29 05:20 night).
   - `physics`, `floating` (position clamping), and chart math.
 - **Visual check**: `tools/render_preview.py` renders balloon poses in every color
   to PNGs, and `tools/snapshot.py` saves PNGs of the real pill, balloon, and stats

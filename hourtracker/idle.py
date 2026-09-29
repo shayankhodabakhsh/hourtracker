@@ -12,6 +12,7 @@ class _GnomeQuery:
     """Calls one method on a GNOME D-Bus service; logs one warning if it can't."""
 
     NAME = PATH = INTERFACE = METHOD = UNAVAILABLE = ""
+    TIMEOUT_MS = 250    # a healthy reply takes well under 1 ms; this runs every 5 s
 
     def __init__(self, proxy=None):
         self._warned = False
@@ -33,8 +34,8 @@ class _GnomeQuery:
         if self._proxy is None:
             return None
         try:
-            reply = self._proxy.call_sync(self.METHOD, None,
-                                          Gio.DBusCallFlags.NONE, 1000, None)
+            reply = self._proxy.call_sync(self.METHOD, None, Gio.DBusCallFlags.NONE,
+                                          self.TIMEOUT_MS, None)
         except GLib.Error as err:
             self._warn(err)
             return None
@@ -65,7 +66,7 @@ class LockMonitor(_GnomeQuery):
     NAME = INTERFACE = "org.gnome.ScreenSaver"
     PATH = "/org/gnome/ScreenSaver"
     METHOD = "GetActive"
-    UNAVAILABLE = "screen lock state unavailable, so a locked screen can't be ignored"
+    UNAVAILABLE = "screen lock state unavailable, so a locked screen is treated as unlocked"
 
     def __call__(self):
         return bool(self._query())
