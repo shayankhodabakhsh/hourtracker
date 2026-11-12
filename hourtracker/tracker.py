@@ -34,19 +34,22 @@ class Away:
 
 class Tracker:
     def __init__(self, store, clock=time.time, idle=lambda: None, locked=lambda: False,
-                 away_after=15 * 60, nudge_after=3 * 60):
+                 away_after=15 * 60, nudge_after=3 * 60, auto_pause_after=120 * 60):
         self.store = store
         self.clock = clock
         self.idle = idle                # () -> seconds since the last input, or None
         self.locked = locked            # () -> True while the screen is locked
         self.away_after = away_after
         self.nudge_after = nudge_after
+        self.auto_pause_after = auto_pause_after
+        self.subject = None             # tags new sittings until changed
         self.nudge_enabled = True
         self.running = False
         self.pending = None             # an Away waiting for "were you studying?"
         self.nudge = None               # while the buzz is open: when the stretch began
         self.on_change = lambda: None   # something the UI shows has changed
         self.on_nudge = lambda: None    # the timer looks forgotten: buzz
+        self.on_auto_pause = lambda left: None  # paused itself; left = last input
         now = clock()
         self._session_id = None
         self._start = now
@@ -103,6 +106,16 @@ class Tracker:
                 log.exception("could not remove the away time")
         self._emit(self.on_change)
 
+    def set_subject(self, subject) -> None:
+        """Tag the running sitting, and the ones after it, with subject."""
+        self.subject = subject or None
+        if self.running and self._session_id is not None:
+            try:
+                self.store.set_subject(self._session_id, self.subject)
+            except sqlite3.Error:
+                log.exception("could not save the subject")
+        self._emit(self.on_change)
+
     def answer_nudge(self, start: bool) -> None:
         """Reply to the buzz. Start counts from zero, like the play button."""
         if self.nudge is None:
@@ -121,6 +134,15 @@ class Tracker:
         if self.running:
             unsaved = self._saved_end if self._session_id is not None else self._start
             rows.append((unsaved, self.clock()))
+        return rows
+
+    def sittings_between(self, a: float, b: float) -> list[tuple]:
+        """(id, start, end, subject, running) of sittings overlapping [a, b),
+        with the running one live. Its id is None until first saved."""
+        rows = [(*row, False) for row in self.store.sittings_between(a, b)
+                if not (self.running and row[0] == self._session_id)]
+        if self.running:
+            rows.append((self._session_id, self._start, self.clock(), self.subject, True))
         return rows
 
     def day_totals(self, first: date, days: int) -> list[float]:
@@ -147,6 +169,8 @@ class Tracker:
             came_back = self._last_active         # nobody studies at a locked screen
         else:
             came_back = now if idle is None else now - idle
+        if self.running and now - self._last_active >= self.auto_pause_after:
+            self._auto_pause(self._last_active, now)
         if came_back - self._last_active >= self.away_after:
             self._returned(self._last_active, came_back)
         self._last_active = max(self._last_active, came_back)
@@ -168,6 +192,17 @@ class Tracker:
             self._nudge_armed = True
             self.nudge = None                     # an old buzz is stale now
             self.pending = None                   # so is an old question: it counts
+        self._emit(self.on_change)
+
+    def _auto_pause(self, left: float, now: float) -> None:
+        """Gone for hours: pause and cut the time since the last input."""
+        log.info("away since %s: pausing and removing that time", _clock_time(left))
+        self.pause()
+        try:
+            self.store.remove_range(left, now)
+        except sqlite3.Error:
+            log.exception("could not remove the away time")
+        self._emit(lambda: self.on_auto_pause(left))
         self._emit(self.on_change)
 
     def _maybe_nudge(self, now: float) -> None:
@@ -197,7 +232,7 @@ class Tracker:
         self._last_save = now
         try:
             if self._session_id is None:
-                self._session_id = self.store.begin(self._start)
+                self._session_id = self.store.begin(self._start, self.subject)
             self.store.extend(self._session_id, now)
             self._saved_end = now
         except sqlite3.Error:

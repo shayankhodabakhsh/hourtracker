@@ -83,11 +83,19 @@ def _sample_stats_window():
     store = Store(":memory:")
     today = local_date(time.time())
     rng = random.Random(7)
+    subjects = ["Calculus", "Biology", None]
     for back in range(1, 40):
         start = local_midnight(today - timedelta(days=back)) + 9 * 3600
-        store.extend(store.begin(start), start + rng.randint(0, 5 * 3600))
-    store.extend(store.begin(time.time() - 5400), time.time())
-    return StatsWindow(Tracker(store), SUNDAY)
+        store.add(start, start + rng.randint(0, 5 * 3600), rng.choice(subjects))
+    now = time.time()
+    store.add(now - 6 * 3600, now - 4 * 3600 - 300, "Calculus")
+    store.add(now - 3 * 3600, now - 2 * 3600, None)
+    clock = [now - 2400]
+    tracker = Tracker(store, clock=lambda: clock[0])
+    tracker.subject = "Biology"
+    tracker.start()                     # running for the last 40 minutes
+    clock[0] = now
+    return StatsWindow(tracker, SUNDAY, goal_seconds=4 * 3600)
 
 
 @target
@@ -102,6 +110,18 @@ def stats_month():
     window = _sample_stats_window()
     window.show_all()
     window.set_view("month")
+    return window
+
+
+@target
+def stats_edit():
+    window = _sample_stats_window()
+    window.show_all()
+
+    def open_first():
+        row = window._list.get_row_at_index(0)
+        window._open_editor(row, row.sitting)
+    GLib.timeout_add(300, open_first)
     return window
 
 

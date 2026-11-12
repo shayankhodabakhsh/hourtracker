@@ -33,6 +33,15 @@ class Notifier:
         except GLib.Error as err:
             log.warning("could not show a notification: %s", err.message)
 
+    def show_info(self, title, body):
+        """A plain notice with no buttons; it doesn't replace the buzz."""
+        if not self._ready:
+            return
+        try:
+            Notify.Notification.new(title, body, "media-playback-pause-symbolic").show()
+        except GLib.Error as err:
+            log.warning("could not show a notification: %s", err.message)
+
     def close(self):
         note, self._current = self._current, None
         if note is not None:

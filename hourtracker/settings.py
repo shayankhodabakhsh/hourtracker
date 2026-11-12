@@ -13,6 +13,9 @@ DEFAULTS = {
     "nudge_enabled": True,       # buzz when the timer looks forgotten
     "nudge_minutes": 3,
     "away_minutes": 15,
+    "auto_pause_minutes": 120,   # away this long: pause and drop that time
+    "daily_goal_minutes": 240,   # a faint line on the chart; 0 hides it
+    "subject": "",               # tags new sittings; "" = no subject
     "week_start": "auto",        # "auto", "sunday", or "monday"
 }
 
@@ -21,6 +24,8 @@ def _valid(key, value) -> bool:
     if key.endswith("_pos"):
         return value is None or (isinstance(value, list) and len(value) == 2
                                  and all(type(v) in (int, float) for v in value))
+    if key == "daily_goal_minutes":
+        return type(value) is int and value >= 0
     if key.endswith("_minutes"):
         return type(value) is int and value >= 1
     return type(value) is type(DEFAULTS[key])

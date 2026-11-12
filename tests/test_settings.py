@@ -43,3 +43,13 @@ class SettingsTest(unittest.TestCase):
         settings = Settings(self.path)
         self.assertEqual(settings["away_minutes"], 15)
         self.assertEqual(settings["nudge_minutes"], 3)
+
+
+class GoalSettingTest(SettingsTest):
+    def test_goal_can_be_zero_but_not_negative(self):
+        self.write('{"daily_goal_minutes": 0, "auto_pause_minutes": 0}')
+        settings = Settings(self.path)
+        self.assertEqual(settings["daily_goal_minutes"], 0)
+        self.assertEqual(settings["auto_pause_minutes"], 120)
+        self.write('{"daily_goal_minutes": -5}')
+        self.assertEqual(Settings(self.path)["daily_goal_minutes"], 240)

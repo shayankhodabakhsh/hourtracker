@@ -103,3 +103,76 @@ def resolve_first_weekday(setting: str) -> int:
     if setting == "monday":
         return MONDAY
     return locale_first_weekday()
+
+
+# Sittings ---------------------------------------------------------------
+
+MIN_SITTING_SECONDS = 60    # shorter ones are start/stop slips: hidden from lists
+
+
+def day_sittings(sittings, day: date) -> list:
+    """The sittings that start on `day` and last at least a minute, oldest first.
+
+    `sittings` are tuples whose [1] and [2] are start and end."""
+    a, b = local_midnight(day), local_midnight(day + timedelta(days=1))
+    return sorted((s for s in sittings
+                   if a <= s[1] < b and s[2] - s[1] >= MIN_SITTING_SECONDS),
+                  key=lambda s: s[1])
+
+
+def fmt_span(start: float, end: float, running: bool = False) -> str:
+    """'10:57 – 12:23', '16:23 – now', or '19:24 – 09:27 (next day)'."""
+    first = datetime.fromtimestamp(start)
+    if running:
+        return f"{first:%H:%M} – now"
+    last = datetime.fromtimestamp(end)
+    days = (last.date() - first.date()).days
+    tail = "" if days == 0 else " (next day)" if days == 1 else f" (+{days} days)"
+    return f"{first:%H:%M} – {last:%H:%M}{tail}"
+
+
+def parse_hhmm(text: str):
+    """Minutes after midnight for 'HH:MM' (or 'H:MM'), or None if not valid."""
+    try:
+        hours, minutes = (int(part) for part in text.strip().split(":"))
+    except ValueError:
+        return None
+    if 0 <= hours < 24 and 0 <= minutes < 60:
+        return hours * 60 + minutes
+    return None
+
+
+def sitting_times(day: date, start_text: str, end_text: str):
+    """(start, end) Unix times for times typed on `day`. An end at or before
+    the start means the next day. Raises ValueError with a short message."""
+    start, end = parse_hhmm(start_text), parse_hhmm(end_text)
+    if start is None or end is None:
+        raise ValueError("Use times like 14:53.")
+    end_day = day + timedelta(days=1) if end <= start else day
+    return (datetime.combine(day, time(start // 60, start % 60)).timestamp(),
+            datetime.combine(end_day, time(end // 60, end % 60)).timestamp())
+
+
+def sitting_problem(start: float, end: float, others, now: float):
+    """Why a sitting from start to end can't be saved, or None if it can.
+    `others` are (start, end) pairs of the other sittings."""
+    if end - start < MIN_SITTING_SECONDS:
+        return "A sitting needs at least a minute."
+    if end - start > 24 * 3600:
+        return "A sitting can't be longer than 24 hours."
+    if end > now:
+        return "That ends in the future."
+    if any(start < other_end and other_start < end for other_start, other_end in others):
+        return "That overlaps another sitting."
+    return None
+
+
+def subject_totals(sittings, a: float, b: float) -> list[tuple]:
+    """[(subject or None, seconds)] for the part of each sitting inside [a, b),
+    largest first. `sittings` are (id, start, end, subject) tuples."""
+    totals = {}
+    for _id, start, end, subject, *_rest in sittings:
+        seconds = max(0.0, min(end, b) - max(start, a))
+        if seconds:
+            totals[subject or None] = totals.get(subject or None, 0.0) + seconds
+    return sorted(totals.items(), key=lambda item: -item[1])

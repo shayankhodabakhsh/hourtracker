@@ -77,3 +77,45 @@ class PersistenceTest(unittest.TestCase):
             reopened = Store(path)
             self.assertEqual(reopened.sessions_between(0, 1000), [(100.0, 200.0)])
             reopened.close()
+
+
+class SubjectTest(StoreTest):
+    def test_subject_is_kept_when_a_cut_splits_a_session(self):
+        session_id = self.store.begin(100, "Bio")
+        self.store.extend(session_id, 400)
+        self.store.remove_range(200, 300)
+        self.assertEqual([row[1:] for row in self.store.sittings_between(0, 1000)],
+                         [(100.0, 200.0, "Bio"), (300.0, 400.0, "Bio")])
+
+    def test_update_delete_and_add(self):
+        session_id = self.add(100, 200)
+        self.store.update(session_id, 120, 180, "Calc")
+        other = self.store.add(300, 400, None)
+        self.assertEqual(self.store.sittings_between(0, 1000),
+                         [(session_id, 120.0, 180.0, "Calc"), (other, 300.0, 400.0, None)])
+        self.store.delete(session_id)
+        self.assertEqual(self.sessions(), [(300.0, 400.0)])
+
+    def test_subjects_most_recent_first(self):
+        self.store.add(100, 200, "Calc")
+        self.store.add(300, 400, "Bio")
+        self.store.add(500, 600, "")
+        self.store.add(700, 800, None)
+        self.assertEqual(self.store.subjects(), ["Bio", "Calc"])
+
+
+class MigrationTest(unittest.TestCase):
+    def test_old_database_gets_a_subject_column_and_keeps_its_rows(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "hours.db")
+            old = sqlite3.connect(path)
+            old.executescript("CREATE TABLE sessions (id INTEGER PRIMARY KEY, "
+                              "start REAL NOT NULL, end REAL NOT NULL);"
+                              "INSERT INTO sessions (start, end) VALUES (100, 200);")
+            old.commit()
+            old.close()
+            for _ in range(2):                   # safe to open twice
+                store = Store(path)
+                self.assertEqual(store.sittings_between(0, 1000), [(1, 100.0, 200.0, None)])
+                store.close()

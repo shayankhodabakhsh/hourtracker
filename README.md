@@ -9,11 +9,21 @@ A minimal study-hour tracker for Ubuntu (GNOME), plus a balloon to fidget with.
   mouse input (or with the laptop asleep), it asks whether you were studying.
   "No" removes that time and pauses the timer. Pausing leaves the question
   open, and starting the timer again counts the time.
+- **Auto-pause**: away for 2+ hours (asleep, locked, or no input) with the
+  timer on, it pauses itself and drops the time since you left. A
+  notification says when it paused.
 - **Forgot-to-start buzz**: after 3 minutes of using the laptop with the timer
   off, the pill shakes and a notification asks if you're studying. "Start"
   counts from zero, like the play button. A locked screen never counts as
   being at the laptop.
-- **Stats**: today, this week, and this month, with a week/month bar chart.
+- **Stats**: today, this week, and this month, with a week/month bar chart, a
+  dashed daily-goal line, and where the hours went by subject.
+- **Sittings**: under the chart, every sitting of the selected day, like
+  `14:53 – 16:53  2h 00m  Calculus`. Click a bar to pick a day. Click a sitting
+  to change its times or subject or delete it, and use **Add** for one you
+  forgot to time. Sittings under a minute are hidden.
+- **Subjects**: right-click the pill, then **Subject**. The one you pick tags
+  the running sitting and every new one until you change it.
 - **Balloon**: a matte black balloon you can drag around and squish. It's only a
   toy.
 
@@ -48,9 +58,12 @@ With the app closed, you can edit `~/.config/hour-tracker/settings.json`:
 
 - `away_minutes`: minutes without input before the away check (default 15)
 - `nudge_minutes`: minutes of use with the timer off before the buzz (default 3)
+- `auto_pause_minutes`: minutes away before the timer pauses itself (default 120)
+- `daily_goal_minutes`: the goal line on the chart (default 240; 0 hides it)
 - `week_start`: `auto`, `sunday`, or `monday`
 
-Minutes must be whole numbers of at least 1, or the default is used.
+Minutes must be whole numbers of at least 1 (the goal may be 0), or the default
+is used.
 
 ## Development
 

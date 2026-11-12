@@ -380,3 +380,62 @@ class RobustnessTest(TrackerTestCase):
             self.tracker.answer_away(studying=False)
         self.assertFalse(self.tracker.running)
         self.assertEqual(self.saved(), [(T0, T0 + 600)])
+
+
+class AutoPauseTest(TrackerTestCase):
+    def test_forgotten_timer_pauses_and_drops_the_night(self):
+        paused = []
+        self.tracker.on_auto_pause = paused.append
+        self.tracker.start()
+        self.advance(600)                          # studying
+        self.advance(2 * 3600, active=False)       # gone for the night
+        self.assertFalse(self.tracker.running)
+        self.assertEqual(paused, [T0 + 600])
+        self.assertEqual(self.saved(), [(T0, T0 + 600)])
+        self.assertIsNone(self.tracker.pending)
+
+    def test_long_sleep_pauses_on_wake(self):
+        self.tracker.start()
+        self.advance(600)
+        self.clock.now += 9 * 3600                 # lid closed all night
+        self.tracker.tick()
+        self.assertFalse(self.tracker.running)
+        self.assertIsNone(self.tracker.pending)
+        self.assertEqual(self.saved(), [(T0, T0 + 600)])
+
+    def test_shorter_away_still_asks(self):
+        self.tracker.start()
+        self.advance(3600, active=False)
+        self.advance(5)
+        self.assertTrue(self.tracker.running)
+        self.assertIsNotNone(self.tracker.pending)
+
+
+class SubjectTrackerTest(TrackerTestCase):
+    def rows(self):
+        return [row[1:] for row in self.tracker.sittings_between(0, T0 * 2)]
+
+    def test_subject_tags_running_and_later_sittings(self):
+        self.tracker.start()
+        self.advance(60)
+        self.tracker.set_subject("Calc")
+        self.tracker.pause()
+        self.tracker.start()
+        self.advance(60)
+        self.assertEqual(self.rows(), [(T0, T0 + 60, "Calc", False),
+                                       (T0 + 60, T0 + 120, "Calc", True)])
+
+    def test_subject_set_before_the_first_save(self):
+        self.tracker.set_subject("Bio")
+        self.tracker.start()
+        self.tracker.set_subject("")
+        self.advance(30)
+        self.tracker.pause()
+        self.assertEqual(self.rows(), [(T0, T0 + 30, None, False)])
+
+    def test_running_sitting_is_listed_once_and_live(self):
+        self.tracker.start()
+        self.advance(45)
+        rows = self.tracker.sittings_between(0, T0 * 2)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][1:], (T0, T0 + 45, None, True))

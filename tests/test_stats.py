@@ -114,3 +114,52 @@ class WeekStartSettingTest(unittest.TestCase):
     def test_explicit_settings(self):
         self.assertEqual(stats.resolve_first_weekday("sunday"), SUNDAY)
         self.assertEqual(stats.resolve_first_weekday("monday"), MONDAY)
+
+
+class SittingsTest(NewYorkTime):
+    DAY = date(2026, 11, 12)
+
+    def at(self, hhmm, day=None):
+        return stats.sitting_times(day or self.DAY, hhmm, "23:59")[0]
+
+    def test_day_sittings_by_start_day_and_hides_slips(self):
+        rows = [(1, self.at("16:23"), self.at("16:53"), None),
+                (2, self.at("10:57"), self.at("12:23"), None),
+                (3, self.at("15:00"), self.at("15:00") + 30, None),          # a slip
+                (4, self.at("23:00", date(2026, 11, 11)), self.at("01:00"), None)]
+        self.assertEqual([r[0] for r in stats.day_sittings(rows, self.DAY)], [2, 1])
+
+    def test_fmt_span(self):
+        a, b = stats.sitting_times(self.DAY, "19:24", "09:27")
+        self.assertEqual(stats.fmt_span(a, b), "19:24 – 09:27 (next day)")
+        a, b = stats.sitting_times(self.DAY, "14:53", "16:53")
+        self.assertEqual(stats.fmt_span(a, b), "14:53 – 16:53")
+        self.assertEqual(stats.fmt_span(a, b, running=True), "14:53 – now")
+
+    def test_parse_hhmm(self):
+        self.assertEqual(stats.parse_hhmm("14:53"), 14 * 60 + 53)
+        self.assertEqual(stats.parse_hhmm(" 9:05 "), 9 * 60 + 5)
+        for bad in ("24:00", "12:60", "1253", "ab:cd", ""):
+            self.assertIsNone(stats.parse_hhmm(bad), bad)
+
+    def test_sitting_times_end_before_start_is_next_day(self):
+        a, b = stats.sitting_times(self.DAY, "19:24", "21:16")
+        self.assertEqual(b - a, 112 * 60)
+        a, b = stats.sitting_times(self.DAY, "23:30", "00:30")
+        self.assertEqual(b - a, 3600)
+        with self.assertRaises(ValueError):
+            stats.sitting_times(self.DAY, "7pm", "21:00")
+
+    def test_sitting_problem(self):
+        a, b = 1000.0, 4600.0
+        self.assertIsNone(stats.sitting_problem(a, b, [(0, 1000), (4600, 5000)], 9999))
+        self.assertIn("overlaps", stats.sitting_problem(a, b, [(4000, 5000)], 9999))
+        self.assertIn("future", stats.sitting_problem(a, b, [], 4000))
+        self.assertIn("minute", stats.sitting_problem(a, a + 30, [], 9999))
+        self.assertIn("24 hours", stats.sitting_problem(a, a + 25 * 3600, [], 1e12))
+
+    def test_subject_totals_clip_to_range_and_sort(self):
+        rows = [(1, 0, 100, "Calc"), (2, 100, 400, "Bio", True),
+                (3, 400, 500, None), (4, 900, 2000, "Calc")]
+        self.assertEqual(stats.subject_totals(rows, 50, 1000),
+                         [("Bio", 300.0), ("Calc", 150.0), (None, 100.0)])

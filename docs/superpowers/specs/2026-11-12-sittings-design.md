@@ -1,7 +1,7 @@
 # Sittings, editing, subjects, goal, auto-pause: design
 
 Date: 2026-11-12
-Status: draft, awaiting approval
+Status: built (user said to finish without more questions)
 Builds on: `2026-09-28-hour-tracker-design.md` (v1)
 
 ## Why
@@ -133,7 +133,9 @@ Both ways (user's decision):
   marked. Picking one tags the running sitting, if there is one, and every new
   sitting after it until changed. It's saved in settings as `subject` (string,
   `""` = none), so it survives a restart.
-- Editing a sitting's subject in the edit box doesn't change the current subject.
+- Editing a past sitting's subject in the edit box doesn't change the current
+  subject. Editing the running sitting's subject does, since it means "I'm
+  studying this now".
 
 ### Daily goal
 
