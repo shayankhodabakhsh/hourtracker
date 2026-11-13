@@ -245,16 +245,18 @@ class StatsWindow(Gtk.Window):
         running = sitting is not None and sitting[4]
         day = local_date(sitting[1]) if sitting else self._selected
         popover = Gtk.Popover(relative_to=anchor_widget, position=Gtk.PositionType.TOP)
+        # No closing animation: on Wayland GTK 3 segfaults if the row it's
+        # attached to goes away while the popover is still animating out.
+        popover.set_transitions_enabled(False)
         grid = Gtk.Grid(column_spacing=8, row_spacing=6)
         for side in ("top", "bottom", "start", "end"):
             getattr(grid, f"set_margin_{side}")(10)
-        start = Gtk.Entry(width_chars=6, placeholder_text="14:53", activates_default=True)
-        end = Gtk.Entry(width_chars=6, placeholder_text="16:53", activates_default=True)
+        start = Gtk.Entry(width_chars=6, placeholder_text="14:53")
+        end = Gtk.Entry(width_chars=6, placeholder_text="16:53")
         subject = Gtk.ComboBoxText.new_with_entry()
         for name in self._tracker.store.subjects():
             subject.append_text(name)
         subject.get_child().set_placeholder_text("No subject")
-        subject.get_child().set_activates_default(True)
         if sitting:
             start.set_text(f"{datetime.fromtimestamp(sitting[1]):%H:%M}")
             end.set_text("now" if running else f"{datetime.fromtimestamp(sitting[2]):%H:%M}")
@@ -271,7 +273,7 @@ class StatsWindow(Gtk.Window):
             grid.attach(widget, 1, row, 1, 1)
         grid.attach(problem, 0, 3, 2, 1)
         buttons = Gtk.Box(spacing=6)
-        save = Gtk.Button(label="Save", can_default=True)
+        save = Gtk.Button(label="Save")
         save.get_style_context().add_class("suggested-action")
         buttons.pack_end(save, False, False, 0)
         if sitting and not running:
@@ -280,15 +282,17 @@ class StatsWindow(Gtk.Window):
             delete.connect("clicked", lambda _b: self._delete(popover, sitting))
             buttons.pack_start(delete, False, False, 0)
         grid.attach(buttons, 0, 4, 2, 1)
-        save.connect("clicked", lambda _b: self._save(
-            popover, sitting, day, start.get_text(), end.get_text(),
-            subject.get_child().get_text().strip(), problem))
+        def do_save(*_args):
+            self._save(popover, sitting, day, start.get_text(), end.get_text(),
+                       subject.get_child().get_text().strip(), problem)
+        save.connect("clicked", do_save)
+        for entry in (start, end, subject.get_child()):  # Enter saves
+            entry.connect("activate", do_save)
         popover.add(grid)
         popover.connect("closed", self._on_editor_closed)
         self._editor = popover
         grid.show_all()
         popover.popup()
-        save.grab_default()
 
     def _save(self, popover, sitting, day, start_text, end_text, subject, problem):
         subject = subject or None
@@ -322,8 +326,12 @@ class StatsWindow(Gtk.Window):
     def _on_editor_closed(self, popover):
         if self._editor is popover:
             self._editor = None
-        GLib.idle_add(popover.destroy)
-        self.refresh()
+
+        def finish():                   # after GTK is done with the popover
+            popover.destroy()
+            self.refresh()
+            return GLib.SOURCE_REMOVE
+        GLib.idle_add(finish)
 
     def _on_close(self, *_args):
         self.hide()
